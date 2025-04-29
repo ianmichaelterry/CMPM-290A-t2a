@@ -1,61 +1,42 @@
 // Parsons problems data with distractors
-const problems = [
-    {
-        prompt: "Arrange the code to print numbers 1 to 3 in Python.",
-        blocks: [
-            { text: "for i in range(1, 4):", correct: true },
-            { text: "    print(i)", correct: true }
-        ],
-        distractors: [
-            { text: "print('Done!')", correct: false },
-            { text: "for j in range(3):", correct: false },
-            { text: "i = 0", correct: false }
-        ]
-    },
-    {
-        prompt: "Arrange the code to define and call a function in JavaScript.",
-        blocks: [
-            { text: "function greet() {", correct: true },
-            { text: "    console.log('Hello!');", correct: true },
-            { text: "}", correct: true },
-            { text: "greet();", correct: true }
-        ],
-        distractors: [
-            { text: "   print('Hello');", correct: false },
-            { text: "function hello() {}", correct: false },
-            { text: "let x = 5;", correct: false }
-        ]
-    },
-    {
-        prompt: "Arrange the code to sum a list of numbers in Python.",
-        blocks: [
-            { text: "numbers = [1, 2, 3]", correct: true },
-            { text: "total = 0", correct: true },
-            { text: "for n in numbers:", correct: true },
-            { text: "    total += n", correct: true },
-            { text: "print(total)", correct: true }
-        ],
-        distractors: [
-            { text: "sum = 0", correct: false },
-            { text: "print(numbers)", correct: false },
-            { text: "for i in range(10):", correct: false }
-        ]
-    }
-];
+// --- Parsons problems are now loaded from a JSON file specified in the URL ---
+let problems = [];
+let problemsLoaded = false;
 
 let currentProblem = 0;
 let availableBlocks = [];
 let solutionBlocks = [];
-let distractorsPool = []; // Track remaining distractors for adaptivity
+let distractorsPool = [];
 let userName = null;
+let userState = [];
 
-// --- Add userState to persist user progress per problem ---
-const userState = problems.map(() => ({
-    availableBlocks: null,
-    solutionBlocks: null,
-    distractorsPool: null,
-    solved: false // Track if problem was solved
-}));
+// Helper to get ?specification=... param
+function getSpecUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('specification') || 'batch1.json'; // default batch
+}
+
+// Load problems from JSON file
+async function loadProblems() {
+    const specUrl = getSpecUrl();
+    try {
+        const resp = await fetch(specUrl);
+        const data = await resp.json();
+        problems = data.problems;
+        problemsLoaded = true;
+        // Initialize userState for the loaded problems
+        userState = problems.map(() => ({
+            availableBlocks: null,
+            solutionBlocks: null,
+            distractorsPool: null,
+            solved: false
+        }));
+    } catch (e) {
+        alert('Failed to load problems: ' + e);
+        problems = [];
+        problemsLoaded = false;
+    }
+}
 
 // Shuffle helper
 function shuffle(array) {
@@ -145,8 +126,17 @@ function printCertificateOnly() {
     });
 }
 
-// Render the current problem
+// --- Render the current problem ---
 function renderProblem() {
+    if (!problemsLoaded || problems.length === 0) {
+        document.getElementById('problem-prompt').textContent = "No problems loaded.";
+        document.getElementById('available-blocks').innerHTML = '';
+        document.getElementById('solution-blocks').innerHTML = '';
+        document.getElementById('feedback').textContent = '';
+        document.getElementById('problem-number').textContent = '';
+        document.getElementById('next-problem').style.visibility = 'hidden';
+        return;
+    }
     const problem = problems[currentProblem];
     document.getElementById('problem-prompt').textContent = problem.prompt;
     document.getElementById('problem-number').textContent = `Problem ${currentProblem + 1} of ${problems.length}`;
@@ -326,8 +316,9 @@ function checkSolution() {
     }
 }
 
-// --- FIX: Wrap all DOM event attachment and renderProblem in DOMContentLoaded ---
-document.addEventListener('DOMContentLoaded', () => {
+// --- DOMContentLoaded: load problems, then ask for name ---
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadProblems();
     askUserName();
 
     // Inject CSS styles
